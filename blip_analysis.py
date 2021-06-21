@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from sklearn.linear_model import LinearRegression
 from scipy.optimize import minimize
+from scipy.signal import correlate
 
 def load_recs() -> jr.JoinedRecording:
     ### Accuracy wont work because more similar responses have a higher mistake therefore i need to flip the scale. 
@@ -50,18 +51,17 @@ def return_mean_resp(odour: int):
     else:
         raise ValueError('Odour index does not exist, odour indexes are 1, 3, 5')
 
-def response_plot(mean_responses, cell_index: int, ttaa = None, pred_funcs=None, return_argmaxsum: bool =False, sharey: bool =False, ) -> Optional[list]:
+def response_plot(mean_responses, cell_index: int, return_shifts: bool = False, pred_funcs=None, return_argmaxsum: bool =False, sharey: bool =False, ) -> Optional[list]:
     unit = mean_responses[:, cell_index]
-    if ttaa is None:
-        shift_args: list[list[int]] = [[np.argmax(np.correlate(unit[j], unit[i], mode='same')/110) for i in range(32)] for j in range(32)]
-        ttaa: int = np.argmax([np.mean([np.corrcoef(unit[i, shift_args[i][i]-20:shift_args[i][i]+20], unit[j, shift_args[i][j]-20:shift_args[i][j]+20]) for i in range(32)]) for j in range(32)])
-    shift_args: list[int] = [np.argmax(np.correlate(unit[i], unit[ttaa], mode='same')/110) for i in range(32)]
     fig, ax = plt.subplots(1, 2, sharey=False, figsize=(12, 4))
     arg_maxes_sum: list = []
+    shifts = np.array([[np.argmax(correlate(unit[i][100:], unit[j][100:])) for i in range(32)] for j in range(32)])
+    avg_shifts = [np.mean(shifts[:, i]) - 111 for i in range(32)]
     for i in range(32):
-        ax[0].plot(np.arange(len(unit[i]))-shift_args[i], unit[i], color=cm.plasma(i/32))
+        ax[0].plot(np.arange(-1000-avg_shifts[i]*10, 1120-10*avg_shifts[i], 10), unit[i], color=cm.plasma(i/32))
         arg_max: int = np.argmax(unit[i][100:])
         arg_maxes_sum.append(np.mean(unit[i][100+arg_max-5:100+arg_max+15]))
+    avg_shifts = np.array(avg_shifts)*-10
     ax[1].plot(arg_maxes_sum, 'o-')
     ax[1].set_xticks(range(32))
     ax[1].set_xticklabels(labels=[f'{i:05b}' for i in range(32)], rotation=90);
@@ -76,9 +76,14 @@ def response_plot(mean_responses, cell_index: int, ttaa = None, pred_funcs=None,
         for index, pred_func in enumerate(pred_funcs):
             ax2.plot(pred_func, 'o-', label='pred_func %d' % index, color='C%d' % (index+1))
         ax2.legend()
+    returned = []
     if return_argmaxsum:
-        return arg_maxes_sum
-
+        returned.append(arg_maxes_sum)
+    if return_shifts:
+        returned.append(avg_shifts)
+    if len(returned) > 0:
+        return returned
+    
 def find_peak_ints(mean_response, cell_index, stim_start=100, pre_peak_window=5, post_peak_window=15):
     unit = mean_response[:, cell_index]
     arg_maxes_mean = []

@@ -155,7 +155,7 @@ def return_mean_resp(odour: int, bl=False, sb=False):
         if not sb:
             if odour in mean_resps:
                 if mean_resps[odour] is None:
-                    print(f'Generating mean odour {odour} response' % odour)
+                    print(f'Generating mean odour {odour} response')
                     _generate_mean_resps(odour, bl=bl)
                 return mean_resps[odour]
             else:
@@ -163,7 +163,7 @@ def return_mean_resp(odour: int, bl=False, sb=False):
         else:
             if odour in mean_resps_sb:
                 if mean_resps_sb[odour] is None:
-                    print(f'Generating mean odour {odour} sniff basis response' % odour)
+                    print(f'Generating mean odour {odour} sniff basis response')
                     _generate_mean_resps(odour, bl=bl, sb=sb)
                 return mean_resps_sb[odour]
             else:
@@ -173,7 +173,7 @@ def return_mean_resp(odour: int, bl=False, sb=False):
             print('No sniff basis basline subtracted sorry.')
         if odour in mean_resps_bl:
             if mean_resps_bl[odour] is None:
-                print(f'Generating mean odour {odour} baslined response' % odour)
+                print(f'Generating mean odour {odour} baslined response')
                 _generate_mean_resps(odour, bl=bl)
             return mean_resps_bl[odour]
         else:

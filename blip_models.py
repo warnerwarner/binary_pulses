@@ -22,7 +22,8 @@ class LinearSigmoidModel():
     @classmethod
     def _error(cls, X, y, params):
         resp_vec = cls._predict(X, params)
-        return np.mean((resp_vec -y)**2)/np.var(y)
+        return np.sum(resp_vec-y*np.log(resp_vec))
+#        return np.mean((resp_vec -y)**2)/np.var(y)
     
     @classmethod
     def _params_to_vars(cls, params):

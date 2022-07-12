@@ -1,6 +1,3 @@
-
-from typing import Optional
-
 from scipy.signal.ltisys import step
 import binary_recording as br
 import joined_recording as jr
@@ -12,31 +9,36 @@ from scipy.optimize import minimize
 from scipy.signal import correlate
 import pdb
 from copy import deepcopy
+from scipy.cluster.hierarchy import linkage, dendrogram
 from matplotlib.gridspec import GridSpec
 import sys
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.metrics import silhouette_score, adjusted_rand_score
+from sklearn.decomposition import PCA
+import exp_blip_models_manu as em
+from sklearn.model_selection import train_test_split
 sys.path.append('/home/camp/warner/working/Recordings/binary_pulses')
 
 
 
-def load_recs(sb=False) -> jr.JoinedRecording:
+def load_recs(sb=False):
     ### Accuracy wont work because more similar responses have a higher mistake therefore i need to flip the scale. 
-    rec1: br.Binary_recording = br.Binary_recording('200228/2020-02-28_19-56-29', 32, '200228/2020-02-28trial_names_ventral.txt', sniff_basis=sb)
-    rec2: br.Binary_recording = br.Binary_recording('200228/2020-02-28_16-37-36/', 32, '200228/2020-02-28trial_names_dorsal.txt', sniff_basis=sb)
-    rec3: br.Binary_recording = br.Binary_recording('200303/2020-03-03_16-44-23/', 32, '200303/2020-03-03trial_names_dorsal.txt', sniff_basis=sb)
-    rec4: br.Binary_recording = br.Binary_recording('200303/2020-03-03_19-57-03/', 32, '200303/2020-03-03trial_names_ventral.txt', sniff_basis=sb)
-    rec5: br.Binary_recording = br.Binary_recording('200309/2020-03-09_16-20-42/', 32, '200309/2020-03-09trial_name_joined.txt', sniff_basis=sb)
-    rec6: br.Binary_recording = br.Binary_recording('200311/2020-03-11_16-51-10/', 32, '200311/2020-03-11trial_name_binary_joined.txt', sniff_basis=sb)
-    rec7: br.Binary_recording = br.Binary_recording('200318/2020-03-18_15-24-43/', 32, '200318/2020-03-18trial_name.txt', sniff_basis=sb)
-    rec8: br.Binary_recording = br.Binary_recording('200319/2020-03-19_16-08-45/', 32, '200319/2020-03-19_16-08-45_trial_names.txt', sniff_basis=sb)
+    rec1 = br.Binary_recording('../200228/2020-02-28_19-56-29/', 32, '../200228/2020-02-28trial_names_ventral.txt', sniff_basis=sb)
+    rec2 = br.Binary_recording('../200228/2020-02-28_16-37-36/', 32, '../200228/2020-02-28trial_names_dorsal.txt', sniff_basis=sb)
+    rec3 = br.Binary_recording('../200303/2020-03-03_16-44-23/', 32, '../200303/2020-03-03trial_names_dorsal.txt', sniff_basis=sb)
+    rec4 = br.Binary_recording('../200303/2020-03-03_19-57-03/', 32, '../200303/2020-03-03trial_names_ventral.txt', sniff_basis=sb)
+    rec5 = br.Binary_recording('../200309/2020-03-09_16-20-42/', 32, '../200309/2020-03-09trial_name_joined.txt', sniff_basis=sb)
+    rec6 = br.Binary_recording('../200311/2020-03-11_16-51-10/', 32, '../200311/2020-03-11trial_name_binary_joined.txt', sniff_basis=sb)
+    rec7 = br.Binary_recording('../200318/2020-03-18_15-24-43/', 32, '../200318/2020-03-18trial_name.txt', sniff_basis=sb)
+    rec8 = br.Binary_recording('../200319/2020-03-19_16-08-45/', 32, '../200319/2020-03-19_16-08-45_trial_names.txt', sniff_basis=sb)
 
-    recs: jr.JoinedRecording = jr.JoinedRecording(recordings=[rec1, rec2, rec3, rec4, rec5, rec6, rec7, rec8])
+    recs = jr.JoinedRecording(recordings=[rec1, rec2, rec3, rec4, rec5, rec6, rec7, rec8])
     return recs
 
-
-# if 'recs' not in globals():
-#     recs= load_recs()
-# else:
-#     print('Found recs already')
+if 'recs' not in globals():
+    recs= load_recs()
+else:
+    print('Found recs already')
 
 if 'mean_resps' not in globals():
     mean_resps = {1:None, 3:None, 5:None}
@@ -46,14 +48,15 @@ if 'mean_resps_bl' not in globals():
 if 'mean_resps_sb' not in globals():
     mean_resps_sb = {1:None, 3:None, 5:None}
 
-def get_recs() -> jr.JoinedRecording:
-    return recs
+if 'units_usrts' not in globals():
+    units_usrts = {1:None, 3:None, 5:None}
 
-def load_sb_recs():
-    if 'sb_recs' not in globals():
-        global sb_recs 
-        sb_recs = load_recs(sb=True)
-        return sb_recs
+if 'odour_variances' not in globals():
+    odour_variances = {1:None, 3:None, 5:None}
+
+def get_trial_array():
+    return np.array([[int(j) for j in f'{trial_int:05b}'] for trial_int in range(32)])
+
 
 def _generate_mean_resps(odour_index, bl=False, sb=False):
     if not sb:
@@ -109,7 +112,7 @@ def return_mean_resp(odour, bl=False, sb=False):
         else:
             raise ValueError('Odour index does not exist, odour indexes are 1, 3, 5')
 
-def response_plot(mean_responses, cell_index: int, return_shifts: bool = False, pred_funcs=None, return_argmaxsum: bool =False, sharey: bool =False, return_axis=False, plot_argmaxsum=True, pred_func_labels=None) -> Optional[list]:
+def response_plot(mean_responses, cell_index: int, return_shifts: bool = False, pred_funcs=None, return_argmaxsum: bool =False, sharey: bool =False, return_axis=False, plot_argmaxsum=True, pred_func_labels=None):
     unit = mean_responses[:, cell_index]
     fig, ax = plt.subplots(1, 2, sharey=False, figsize=(12, 4))
     arg_maxes_sum: list = []
@@ -148,150 +151,131 @@ def response_plot(mean_responses, cell_index: int, return_shifts: bool = False, 
     if len(returned) > 0:
         return returned
     
-def find_peak_ints(mean_response, cell_index, stim_start=100, pre_peak_window=5, post_peak_window=15):
-    unit = mean_response[:, cell_index]
-    arg_maxes_mean = []
-    for i in range(32):
-        arg_max  = np.argmax(unit[i][stim_start:])
-        arg_maxes_mean.append(np.mean(unit[i][stim_start+arg_max-pre_peak_window:stim_start+arg_max+post_peak_window]))
-    return arg_maxes_mean
 
-
-def sigmoidal_model(trial_int, *params):
-    s = f'{trial_int:05b}'
-    resp_val = sum([val * (i == '1') for val, i in zip(params[:5], s)])
-    amp, thresh, bl = params[5:]
-    resp_val = amp/(1+np.exp(-(resp_val + thresh))) + bl
-    return resp_val
-
-def sigmoidal_model2(trial_int, *params):
-    s = f'{trial_int:05b}'
-    resp_val = sum([val * (i == '1') for val, i in zip(params[:5], s)])
-    resp_val += sum([val * (i+j == '11') for val, i, j in zip(params[5:], s[:-1],s[1:])])
-    amp, thresh, bl = params[-3:]
-    resp_val = amp/(1+np.exp(-(resp_val + thresh))) + bl
-    return resp_val
-
-def model_error(params, true_value, step_func):
-    resp_vec = np.array([step_func(i, *params) for i in range(32)])
-    return np.mean((resp_vec - true_value)**2)/np.var(true_value)  #+ abs(sum(params[:5]) - params[5])
-
-def linear_reg_fit(arg_maxes, bl=None, amp=None, thresh=None, model=None, bl_mult=0.9, amp_mult=1.1, init_guess = None, bounds=None, **kwargs):
-    if bl is None: bl = np.min(arg_maxes)*bl_mult
-    if amp is None: amp = (np.max(arg_maxes) - bl)*amp_mult
-    if thresh is None: thresh = 0
-    if model is None: model = "sigmoidal_model"
-    #pdb.set_trace()
-    model_func = models[model]['func']
-    bin_array = models[model]['bin_array']
-    if init_guess is None:
-        inter_log = (arg_maxes - bl)/(amp-arg_maxes + bl)
-        inter_log = np.maximum(inter_log, 1e-5)
-        wx = np.log(inter_log)
-
-        lr = LinearRegression()
-        lr.fit(bin_array, wx)
+def dendo_and_heatmap(bin_weights, fig=None, return_fig = False):
+    if fig is None:
+        fig = plt.figure(figsize=(10, 6))
+    bin_weights = np.array(bin_weights)
+    Z = linkage(bin_weights, method='complete', optimal_ordering=True)
+    gs = GridSpec(2, 20)
+    ax1 = fig.add_subplot(gs[0, :-1])
+    ax2 = fig.add_subplot(gs[1, :-1])
+    cbar = fig.add_subplot(gs[1, -1])
+    d = dendrogram(Z, ax=ax1);
+    ax1.set_xticks([])
+    im = ax2.imshow(bin_weights[d['leaves']].T, aspect='auto', cmap='seismic', vmin=-np.max(abs(bin_weights)), vmax=np.max(abs(bin_weights)))
+    plt.colorbar(mappable=im, cax=cbar)
+    if return_fig:
+        return fig
     
-    
-        # Final lr coef is the threshold
-        print('init_guess', lr.coef_, lr.intercept_)
-        params = list(lr.coef_) + [amp, lr.intercept_, bl]
+def get_usrts(odour_index, **kwargs):
+    if 'pre_trial_window' not in kwargs:
+        kwargs['pre_trial_window'] = 0
+    if 'post_trial_window' not in kwargs:
+        kwargs['post_trial_window'] = 0.38
+    if units_usrts[odour_index] is None:
+        resps = [recs.get_binned_trial_response(f'{i}_{odour_index}', **kwargs)[1] for i in range(32)]
+        units_usrt = np.array([[repeation for recording in trial for repeation in np.rollaxis(recording, 1)] for trial in resps]).T
+        units_usrts[odour_index] = units_usrt
     else:
-        params = init_guess
-    if 'method' not in kwargs:
-        kwargs['method'] = 'L-BFGS-B'
-    if bounds is None:
-        bounds = [(None, None) for i in range(len(params))]
-        bounds[:-3] = [(-5, 5)]*len(bounds[:-3])
-        bounds[-3] = (0, amp*2)
-        bounds[-1] = (0, None)
-    min_fun = minimize(model_error, params, args=(arg_maxes, model_func), **kwargs, bounds=bounds)
-    print(min_fun.fun, "\n")
-    print(min_fun.message)
-    print(min_fun.nit)
-    return min_fun, min_fun.x
+        units_usrt = units_usrts[odour_index]
+    return units_usrt
 
+def get_variances(odour_index):
+    if units_usrts[odour_index] is None:
+        print('Calculating usrt')
+    units_usrt = get_usrts(odour_index)
+    all_vars = []
+    for i in range(len(units_usrt)):
+        mean_resps = [[np.sum(k) for k in j] for j in units_usrt[i]]
+        all_vars.append([np.var(j) for j in mean_resps])
 
-def z_score_plot(data, dataz,unit_id, pos_thresh, neg_thresh, figsize=(13, 6)):
-    bin_reps = [[int(char) for char in f'{i:05b}'] for i in range(32)]
-    gs = GridSpec(1, 10)
-    fig = plt.figure(figsize=figsize)
-    ax4 =plt.subplot(gs[0, 0])
-    ax1 = plt.subplot(gs[0, 1:4])
-    ax2 = plt.subplot(gs[0, 4:7])
-    ax3 = plt.subplot(gs[0, 7:])
-    ax1.matshow(data[:, unit_id], aspect='auto', cmap='bwr', extent= [-1, 1.12, 31, 0], vmin=-np.max(abs(data[:, unit_id])), vmax=np.max(abs(data[:, unit_id])))
-
-
-    ax2.matshow(relu2(dataz[:, unit_id], pos_thresh, neg_thresh), aspect='auto', cmap='bwr', extent= [-1, 1.12, 31, 0], vmin=-np.max(abs(dataz[:, unit_id])),  vmax=np.max(abs(dataz[:, unit_id])))
-   
-    ax3.plot(np.sum(relu_neg(dataz[:, unit_id], neg_thresh), axis=-1), range(32), label='neg', color='b')
-    ax3.plot(np.sum(relu(dataz[:, unit_id], pos_thresh), axis=-1), range(32), label='pos', color='r')
-    ax3.plot(np.sum(relu2(dataz[:, unit_id], pos_thresh, neg_thresh), axis=-1), range(32), label='sum', color='violet')
-
-    ax3.legend()
-
-    ax1.set_xlabel('Time (s)')
-    #ax1.set_ylabel('Trial number')
-    ax3.set_xlabel('Summed Z score')
-    #ax3.set_xlim(0, 3)
-    ax3.grid(True)
-    vmin = np.min(data[:, unit_id])
-    vmax = np.max(data[:, unit_id])
-    vminz = np.min(dataz[:, unit_id])
-    vmaxz = np.max(dataz[:, unit_id])
-    fig.suptitle(f'Vmin_raw={vmin:.2f}, Vmax_raw={vmax:.2f}, Vmin_z={vminz:.2f}, Vmax_z={vmaxz:.2f}')
-    ax4.imshow(bin_reps)
-
-    ax1.set_yticklabels([])
-    ax2.set_yticklabels([])
-    ax3.set_yticklabels([])
-    ax3.set_ylim(ax4.get_ylim())
-
-    ax4.set_xticks([])
-    ax4.set_ylabel('Trial number')
+    odour_variances[odour_index] = all_vars
+    return all_vars
     
-
-def compute_for_dimension(data, dimension, func):
-    dimensions = np.arange(len(data.shape))
-    dimensions[0] = dimension
-    dimensions[dimension] = 0
-    data_transposed = data.transpose(dimensions)
-    data_reshape = data_transposed.reshape(data_transposed.shape[0], -1)
-    data_funced = func(data_reshape, axis=-1)
-    return data_funced
     
+def get_stable_resp_indexes(odour_index='all'):
+    if odour_index=='all':
+        all_stables = []
+        for i in [1, 3, 5]:
+            all_vars = get_variances(i)
+            stable_indexes = np.arange(len(all_vars))[np.min(np.array(all_vars), axis=-1) != 0]
+            all_stables.append(stable_indexes)
+        stable_indexes = np.array([i for i in range(145) if i in all_stables[0] and i in all_stables[1] and i in all_stables[2]])
+    else:
+        all_vars = get_variances(odour_index)
+        stable_indexes = np.arange(len(all_vars))[np.min(np.array(all_vars), axis=-1) != 0]
+    return stable_indexes
 
-def z_score_resps(resp, bl_window=slice(0, 100), tol=1e-6, method='basic'):
-    if method == 'basic':
-        mean_resp = compute_for_dimension(resp[:, :, bl_window], 1, np.mean)
-        std_resp  = compute_for_dimension(resp[:, :, bl_window], 1, np.std)
-        z_scored_resp = (resp-mean_resp[np.newaxis, :, np.newaxis])/(std_resp[np.newaxis, :, np.newaxis]+tol)
-        return z_scored_resp
-    if method == 'seperate':
-        resp_copy_pos = deepcopy(resp)
-        resp_copy_pos[resp_copy_pos <= 0] = np.nan
-        resp_copy_neg = deepcopy(resp)
-        resp_copy_neg[resp_copy_neg > 0] = np.nan
+def split_data_train(units_usrt, test_size=0.5, model_type=None):
+    if model_type is None:
+        model_type = em.ExponentialInteractiveModel
+    
+    units_usrt_split = np.array([[train_test_split(i, test_size=test_size) for i in j] for j in units_usrt])
+    units_usrt_train = units_usrt_split[:, :, 0]
+    units_usrt_test = units_usrt_split[:, :, 1]
+    models_train = []
+    models_test = []
+    
+    for i in range(len(units_usrt)):
+        model = model_type(units_usrt_train, i)
+        model.fit()
+        models_train.append(model)
+
+        model = model_type(units_usrt_test, i)
+        model.fit()
+        models_test.append(model)
         
-        pos_mean_resp = compute_for_dimension(resp_copy_pos[:, :, bl_window], 1, np.nanmean)
-        pos_std_resp  = compute_for_dimension(resp_copy_pos[:, :, bl_window], 1, np.nanstd)
-        neg_mean_resp = compute_for_dimension(resp_copy_neg[:, :, bl_window], 1, np.nanmean)
-        neg_std_resp  = compute_for_dimension(resp_copy_neg[:, :, bl_window], 1, np.nanstd)
-        
-        z_scored_pos = (resp_copy_pos-pos_mean_resp[np.newaxis, :, np.newaxis])/(pos_std_resp[np.newaxis, :, np.newaxis]+tol)
-        z_scored_neg = (resp_copy_neg-neg_mean_resp[np.newaxis, :, np.newaxis])/(neg_std_resp[np.newaxis, :, np.newaxis]+tol)
-        
-        z_scored_resp = np.nan_to_num(z_scored_pos) + np.nan_to_num(z_scored_neg)
-        return z_scored_resp, np.nan_to_num(z_scored_pos), np.nan_to_num(z_scored_neg)
+    return models_train, models_test
 
-relu= lambda x, th: (x-th)*(x>th)
+def subtract_pc(models_train, models_test, pc_index=0, subtract_mean=True, normalise=True, inv_bins_index=None):
+    bins_train = np.array([i.opt_out.x[:-1] for i in models_train])
+    bins_test = np.array([i.opt_out.x[:-1] for i in models_test])
+    if inv_bins_index is None:
+        inv_bins_index = [np.sign(i)[0] for i in bins_train]
+    inv_bins_index = np.array(inv_bins_index)
+    inv_bins_train = bins_train * inv_bins_index[:, np.newaxis]
+    inv_bins_test = bins_test * inv_bins_index[:, np.newaxis]
+    pca_split = PCA(n_components=9)
+    pcad_inv_bins_train = pca_split.fit_transform(inv_bins_train)
+    pcad_inv_bins_test = pca_split.transform(inv_bins_test)
+    pcad_inv_bins_train[:,  0] = np.zeros(len(pcad_inv_bins_train))
+    pcad_inv_bins_test[:,  0] = np.zeros(len(pcad_inv_bins_train))
+    if subtract_mean:
+        pcad_inv_bins_train = pca_split.inverse_transform(pcad_inv_bins_train) - pca_split.mean_
+        pcad_inv_bins_test = pca_split.inverse_transform(pcad_inv_bins_test) - pca_split.mean_
+    if normalise:
+        pcad_inv_bins_train = pcad_inv_bins_train/ np.max(np.abs(pcad_inv_bins_train), axis=-1)[:, np.newaxis]
+        pcad_inv_bins_test = pcad_inv_bins_test/ np.max(np.abs(pcad_inv_bins_test), axis=-1)[:, np.newaxis]
+    
+    return pcad_inv_bins_train, pcad_inv_bins_test
 
-relu2= lambda x, th_max, th_min: (x-th_max)*(x>th_max) -(x+th_min)*(x < -th_min)
-
-relu_neg = lambda x, th: -(x+th)*(x<-th)
-
-models = {
-        'sigmoidal_model1':{'func':sigmoidal_model, 'bin_array':[[int(j) for j in f'{trial_int:05b}'] for trial_int in range(32)]},
-        'sigmoidal_model2':{'func':sigmoidal_model2, 'bin_array':[[int(j) for j in f'{trial_int:05b}']+[(i+j == '11') for i, j in zip(f'{trial_int:05b}'[:-1], f'{trial_int:05b}'[1:])] for trial_int in range(32)]}
-         }
+def cluster_and_score_train_test(train_bins, test_bins, cluster_type = None, **kwargs):
+    if cluster_type is None:
+        cluster_type = AgglomerativeClustering
+        if 'affinity' not in kwargs:
+            kwargs['affinity'] = 'euclidean'
+        if 'linkage' not in kwargs:
+            kwargs['linkage'] = 'complete'
+    clustering = cluster_type(**kwargs)
+    cluster_train = clustering.fit_predict(train_bins)
+    cluster_test = clustering.fit_predict(test_bins)
+#    print(cluster_train)
+    if any(cluster_train == -1):
+        #print('a')
+        non_noise_cluster_train = cluster_train[np.where(cluster_train != -1)[0]]
+        non_noise_cluster_test = cluster_test[np.where(cluster_test != -1)[0]]
+        non_noise_train_bins = train_bins[np.where(cluster_train != -1)[0]]
+        non_noise_test_bins = test_bins[np.where(cluster_test != -1)[0]]
+        #print(non_noise_cluster_train, non_noise_cluster_test)
+        if len(np.unique(non_noise_cluster_train)) == 1 or len(np.unique(non_noise_cluster_test)) == 1:
+            train_silh = 0
+            test_silh = 0
+        else:
+            train_silh = silhouette_score(non_noise_train_bins, non_noise_cluster_train)
+            test_silh = silhouette_score(non_noise_test_bins, non_noise_cluster_test)
+    else:
+        train_silh = silhouette_score(train_bins, cluster_train)
+        test_silh = silhouette_score(test_bins, cluster_test)
+    randi = adjusted_rand_score(cluster_train, cluster_test)
+    return train_silh, test_silh, randi

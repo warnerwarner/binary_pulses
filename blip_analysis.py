@@ -13,6 +13,8 @@ from scipy.signal import correlate
 import pdb
 from copy import deepcopy
 from matplotlib.gridspec import GridSpec
+import sys
+sys.path.append('/home/camp/warner/working/Recordings/binary_pulses')
 
 
 
@@ -51,6 +53,7 @@ def load_sb_recs():
     if 'sb_recs' not in globals():
         global sb_recs 
         sb_recs = load_recs(sb=True)
+        return sb_recs
 
 def _generate_mean_resps(odour_index, bl=False, sb=False):
     if not sb:

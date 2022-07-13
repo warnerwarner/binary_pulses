@@ -1,19 +1,41 @@
+"""Module containing LNP model objects using sigmoid non-linearities.
+These are the older version of the models, and the newer versions are in exp_blip_models"""
 from sklearn.linear_model import LinearRegression
 from scipy.optimize import differential_evolution
 import numpy as np
 from scipy.optimize import minimize
 
 def check_not_none(iterable):
+    """Checks to see if any values are not left as None
+
+    Args:
+        iterable (iterable): Any iterable (tuple, list, array)
+
+    Returns:
+        bool: Returns True if none are None, and False otherwise
+    """
     return not any([i is None for i in iterable])
     
 
 class LinearSigmoidModel():
+    """Class to create LNP models using a sigmoid function as the non-linearity 
+    """
     all_bin_array = np.array([[int(j) for j in f'{trial_int:05b}'] for trial_int in range(32)])
     num_trials, num_weights = all_bin_array.shape
     _estimator_type_ = "regressor"
     
     @classmethod
     def _predict(cls, bin_array, params):
+        """Predicts the response of a cell using the fit bin weights
+
+        Args:
+            bin_array (list): List of lists, containing the linear representation of the trials
+            params (list): The list of parameters, including the bin weights, amplitude, threshold
+                           and the baseline firing.
+
+        Returns:
+            resp_val (list): The predicted response values for the cell
+        """
         bin_weights, amp, thresh, bl = cls._params_to_vars(params)
         resp_val = bin_array@bin_weights
         resp_val = amp/(1+np.exp(-(resp_val + thresh))) + bl
@@ -21,12 +43,31 @@ class LinearSigmoidModel():
 
     @classmethod
     def _error(cls, X, y, params):
+        """Calculate the log likelihood error
+
+        Args:
+            X (list): List of the input bin patterns
+            y (list): True responses 
+            params (list): Parameters for the fitting
+
+        Returns:
+            _type_: _description_
+        """
         resp_vec = cls._predict(X, params)
         return np.sum(resp_vec-y*np.log(resp_vec))
 #        return np.mean((resp_vec -y)**2)/np.var(y)
     
     @classmethod
     def _params_to_vars(cls, params):
+        """Unpacks the parameters into the individual values inside
+
+        Args:
+            params (list): List of the parameters
+
+        Returns:
+            bin_weights (list): The set of bin weights used in the initial linear filter
+            amp (float): The amplitude s
+        """
         *bin_weights, amp, thresh, bl = params
         return bin_weights, amp, thresh, bl
     

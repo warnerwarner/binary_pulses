@@ -22,8 +22,13 @@ class ExponentialModel():
         self.is_fit = False
         self.fit_score = np.inf
         self.loss_val = np.inf
-    
         self.true_resp = [np.mean(s) for s in self.unit_sr]
+        self.train_scores = None
+        self.test_scores = None
+        self.X_train_avg = None
+        self.X_test_avg = None
+        self.pred_train_avg = None
+        self.pred_test_avg = None
     
     
     def minimisation_loss(self, w, X=None, y_1=None):
@@ -165,17 +170,23 @@ class ExponentialModel():
         self.pred_test_avg = np.array(all_pred_test_avg)
         
 
-                
+
             
 
-
 class ExponentialInteractiveModel(ExponentialModel):
+    '''
+    Models which contain interaction terms
+    '''
+
     trial_array = np.array([[int(j) for j in f'{trial_int:05b}']+[(i+j == '11') for i, j in zip(f'{trial_int:05b}'[:-1], f'{trial_int:05b}'[1:])] for trial_int in range(32)])
 
     def __init__(self, unit_usrt, unit_id, stim_count_type='mean'):
         super().__init__(unit_usrt, unit_id, stim_count_type )
             
 class ExponentialCustomTrialArray(ExponentialModel):
+    '''
+    Models with unique trial arrays
+    '''
 
     def __init__(self, unit_usrt, unit_id, trial_array, stim_count_type='mean'):
         super().__init__(unit_usrt, unit_id, stim_count_type)
@@ -183,12 +194,18 @@ class ExponentialCustomTrialArray(ExponentialModel):
         self.trial_array_full = np.concatenate([[list(self.trial_array[s])]*len(self.unit_sr[s]) for s in range(len(self.trial_array))])
 
 class ExponentialJoinedWeights(ExponentialInteractiveModel):
+    '''
+    Models which share a single weighting
+    '''
     
     def __init__(self, unit_usrt, unit_id, stim_count_type='mean'):
         super().__init__(unit_usrt, unit_id, stim_count_type)
         
     
 class ExponentialSetWeighting(ExponentialInteractiveModel):
+    '''
+    Depreciated, now can be done by any ExponentialModel
+    '''
     
     def __init__(self, unit_usrt, unit_id, stim_count_type='mean'):
         super().__init__(unit_usrt, unit_id, stim_count_type)
@@ -211,6 +228,9 @@ class ExponentialSetWeighting(ExponentialInteractiveModel):
         return super().minimisation_loss(wt)
     
 class ExponentialPartSetWeighting(ExponentialInteractiveModel):
+    '''
+    Depreciated
+    '''
     
     def __init__(self, unit_usrt, unit_id, stim_count_type='mean'):
         super().__init__(unit_usrt, unit_id, stim_count_type)

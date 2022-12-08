@@ -1,5 +1,6 @@
 """Contains collection of general analysis functions use in the analysis of blip recordings"""
 import sys
+import os
 import binary_recording as br
 import joined_recording as jr
 import numpy as np
@@ -63,11 +64,11 @@ def load_recs(sb = False):
     return rec_array
 
 # Load in the recordings straight away and set some dictionaries
-sb_recs = None
-if 'recs' not in globals():
-    recs = load_recs()
-else:
-    print('Found recs already')
+# sb_recs = None
+# if 'recs' not in globals():
+#     recs = load_recs()
+# else:
+#     print('Found recs already')
 
 
 def load_sniff_recs():
@@ -304,6 +305,45 @@ def get_usrts(odour_index: int, **kwargs):
         units_usrt = units_usrts[odour_index]
     return units_usrt
 
+def save_usrts(file_name='unit_usrt'):
+    """Saves USRTs data structures
+
+    Args:
+        file_name (str, optional): Name to save file as. Defaults to 'unit_usrt'.
+    """
+    for odour_index in [1, 3, 5]:
+        if units_usrts[odour_index] is not None:
+            units_usrt = units_usrts[odour_index]
+            if os.path.isfile(f'{file_name}{odour_index}.npy'):
+                overwrite = input('Usrt file already found, do you want to overwrite? (y/n)')
+                if overwrite == 'y':
+                    print('Overwritten')
+                    np.save(f'{file_name}{odour_index}.npy', units_usrt)
+                elif overwrite == 'n':
+                    print('Not overwritten')
+                else:
+                    print('Argument not understood')
+
+def load_usrts(file_name='units_usrt'):
+    """Load in usrts
+
+    Args:
+        file_name (str, optional): Name of the files to find. Defaults to 'units_usrt'.
+
+    Returns:
+        : _description_
+    """
+    for odour_index in [1, 3, 5]:
+        usrts_array = []
+        if os.path.isfile(f'{file_name}{odour_index}.npy'):
+            units_usrt = np.load(f'{file_name}{odour_index}.npy')
+            units_usrts[odour_index] = units_usrt
+            usrts_array.append(units_usrt)
+            print(f'Found odour {odour_index}')
+        return usrts_array
+    else:
+        print('No usrt file found, try different name or get_usrts to generate fresh ones.')
+
 def get_variances(odour_index:int) -> list:
     """Finds the variances of all units to odour presentations of a certain odour identity
 
@@ -460,3 +500,21 @@ def cluster_and_score_train_test(train_bins:list, test_bins:list, cluster_type =
         test_silh = silhouette_score(test_bins, cluster_test)
     randi = adjusted_rand_score(cluster_train, cluster_test)
     return train_silh, test_silh, randi
+
+def get_glyphs(on_glyph='\u25AE', off_glyph='\u25AF'):
+    '''
+    Generates the glyphs for presentation uses.
+    '''
+    glyphs = []
+    for i in get_trial_array():
+        glyph_str = ''
+        for j in i:
+            if j == 1:
+                glyph_str+=on_glyph
+            else:
+                glyph_str += off_glyph
+
+
+
+        glyphs.append(glyph_str)
+    return glyphs

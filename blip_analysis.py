@@ -26,37 +26,37 @@ def load_recs(sb = False):
     Returns:
         JoinedRecording: All recordings joined together in a JoinedRecording objext
     """
-    rec1 = br.Binary_recording('../200228/2020-02-28_19-56-29/',
+    rec1 = br.Binary_recording('/camp/home/warnert/working/Recordings/binary_pulses/200228/2020-02-28_19-56-29/',
                                 32,
-                               '../200228/2020-02-28trial_names_ventral.txt',
+                               '/camp/home/warnert/working/Recordings/binary_pulses/200228/2020-02-28trial_names_ventral.txt',
                                sniff_basis=sb)
-    rec2 = br.Binary_recording('../200228/2020-02-28_16-37-36/',
+    rec2 = br.Binary_recording('/camp/home/warnert/working/Recordings/binary_pulses/200228/2020-02-28_16-37-36/',
                                 32,
-                                '../200228/2020-02-28trial_names_dorsal.txt',
+                                '/camp/home/warnert/working/Recordings/binary_pulses/200228/2020-02-28trial_names_dorsal.txt',
                                 sniff_basis=sb)
-    rec3 = br.Binary_recording('../200303/2020-03-03_16-44-23/',
+    rec3 = br.Binary_recording('/camp/home/warnert/working/Recordings/binary_pulses/200303/2020-03-03_16-44-23/',
                                 32,
-                                '../200303/2020-03-03trial_names_dorsal.txt',
+                                '/camp/home/warnert/working/Recordings/binary_pulses/200303/2020-03-03trial_names_dorsal.txt',
                                 sniff_basis=sb)
-    rec4 = br.Binary_recording('../200303/2020-03-03_19-57-03/',
+    rec4 = br.Binary_recording('/camp/home/warnert/working/Recordings/binary_pulses/200303/2020-03-03_19-57-03/',
                                 32,
-                                '../200303/2020-03-03trial_names_ventral.txt',
+                                '/camp/home/warnert/working/Recordings/binary_pulses/200303/2020-03-03trial_names_ventral.txt',
                                 sniff_basis=sb)
-    rec5 = br.Binary_recording('../200309/2020-03-09_16-20-42/',
+    rec5 = br.Binary_recording('/camp/home/warnert/working/Recordings/binary_pulses/200309/2020-03-09_16-20-42/',
                                 32,
-                                '../200309/2020-03-09trial_name_joined.txt',
+                                '/camp/home/warnert/working/Recordings/binary_pulses/200309/2020-03-09trial_name_joined.txt',
                                 sniff_basis=sb)
-    rec6 = br.Binary_recording('../200311/2020-03-11_16-51-10/',
+    rec6 = br.Binary_recording('/camp/home/warnert/working/Recordings/binary_pulses/200311/2020-03-11_16-51-10/',
                                 32,
-                                '../200311/2020-03-11trial_name_binary_joined.txt',
+                                '/camp/home/warnert/working/Recordings/binary_pulses/200311/2020-03-11trial_name_binary_joined.txt',
                                 sniff_basis=sb)
-    rec7 = br.Binary_recording('../200318/2020-03-18_15-24-43/',
+    rec7 = br.Binary_recording('/camp/home/warnert/working/Recordings/binary_pulses/200318/2020-03-18_15-24-43/',
                                 32,
-                                '../200318/2020-03-18trial_name.txt',
+                                '/camp/home/warnert/working/Recordings/binary_pulses/200318/2020-03-18trial_name.txt',
                                 sniff_basis=sb)
-    rec8 = br.Binary_recording('../200319/2020-03-19_16-08-45/',
+    rec8 = br.Binary_recording('/camp/home/warnert/working/Recordings/binary_pulses/200319/2020-03-19_16-08-45/',
                                 32,
-                                '../200319/2020-03-19_16-08-45_trial_names.txt',
+                                '/camp/home/warnert/working/Recordings/binary_pulses/200319/2020-03-19_16-08-45_trial_names.txt',
                                 sniff_basis=sb)
 
     rec_array = jr.JoinedRecording(recordings=[rec1, rec2, rec3, rec4, rec5, rec6, rec7, rec8])

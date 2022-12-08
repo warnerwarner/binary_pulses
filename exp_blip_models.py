@@ -1,28 +1,15 @@
+"""Newer class for the exponetial LNP models."""
 import numpy as np
 import scipy
 from sklearn.model_selection import StratifiedShuffleSplit
 
 class ExponentialModel():
     '''
-    LNP models using exponential non-linearity. 
+    LNP models using exponential non-linearity.
     '''
     trial_array = np.array([[int(j) for j in f'{trial_int:05b}'] for trial_int in range(32)])
 
-    def __init__(self, units_usrt, unit_id, stim_count_type='mean'):
-        '''
-        Inputs:
-        units_usrt - The firing rate responses, in a tensor of unit x stimuli type x repeat x time
-        unit_id - The index of the unit this model will be fitting to
 
-        unit_srt - The full response for the cell to be fit to
-        unit_sr - The average firing rate of this cell across all stimuli and repeats
-        unit_sr_flat - Each average firing rate across all stimuli and repeats, flatterned into one array
-        unit_sr_var - The variance of the cell's response across the repeats of each stimulus
-        trial_array_full - Generates an extended list of trial input patterns, according to the number of repeats of each pattern
-        is_fit - Has this been fit to the data yet
-        fit_score - Misnomar - the fitting error
-        true_resp - The true average firing rate change
-        '''
         self.unit_srt = units_usrt[unit_id]
         if stim_count_type == 'mean':
             self.unit_sr = [[np.mean(r) for r in s] for s in self.unit_srt] # Should be mean as it units_srt is in firing rate not spike count
@@ -40,9 +27,17 @@ class ExponentialModel():
     
     
     def minimisation_loss(self, w, X=None, y_1=None):
-        '''
-        Calculate the loss for use in the minimisation function.
-        '''
+        """Loss function to use in the minimisation procedure for fitting
+
+        Args:
+            w (list): bin weightings
+            X (list, optional): Values to fit to. If None, then takes the self.true_resp.
+            y_1 (list, optional): The input bin pattern to use. If None, then uses the
+                                  self.trial_array with an additional constant threshold value
+
+        Returns:
+            loss (float): The calculated loss value
+        """
 
         # If no X and y_1 are presented (as is the case when its being implemented in the minimize function) then take the resps
         if X is None: X = self.true_resp
@@ -54,15 +49,28 @@ class ExponentialModel():
         return self.loss(pred_response, X)
     
     def loss(self, pred_response, true_response):
-        '''
-        Calculates the loss of a Poisson firing process model
-        '''
+        """Calculate the Poisson loss function
+
+        Args:
+            pred_response (list): The predicted firing rates
+            true_response (list): The measured firing rates
+
+        Returns:
+            loss (float): Total loss score for all the fits
+        """
         return np.sum(pred_response-true_response*np.log(pred_response))
     
     def fit_scores(self, true_resp=None, pred_resp=None, vars=None):
-        '''
-        Returns the mean square difference between the predicted and actual firing rates
-        '''
+        """Calculates the least squares fit error
+
+        Args:
+            true_resp (_type_, optional): _description_. Defaults to None.
+            pred_resp (_type_, optional): _description_. Defaults to None.
+            vars (_type_, optional): _description_. Defaults to None.
+
+        Returns:
+            _type_: _description_
+        """
         if true_resp is None: true_resp = self.true_resp
         if pred_resp is None: pred_resp= self.pred_resp
         if vars is None: vars = self.unit_sr_var

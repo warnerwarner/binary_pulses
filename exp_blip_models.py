@@ -9,7 +9,7 @@ class ExponentialModel():
     '''
     trial_array = np.array([[int(j) for j in f'{trial_int:05b}'] for trial_int in range(32)])
 
-
+    def __init__(self, units_usrt, unit_id, stim_count_type='mean'):
         self.unit_srt = units_usrt[unit_id]
         if stim_count_type == 'mean':
             self.unit_sr = [[np.mean(r) for r in s] for s in self.unit_srt] # Should be mean as it units_srt is in firing rate not spike count

@@ -329,7 +329,7 @@ def save_usrts(file_name='unit_usrt', filepath=None):
             else:
                 np.save(f'{filepath}/{file_name}{odour_index}.npy', units_usrt)
 
-def load_usrts(file_name='units_usrt', filepath=None):
+def load_usrts(file_name='unit_usrt', filepath=None):
     """Load in usrts
 
     Args:
@@ -344,7 +344,7 @@ def load_usrts(file_name='units_usrt', filepath=None):
     for odour_index in [1, 3, 5]:
         usrts_array = []
         if os.path.isfile(f'{filepath}/{file_name}{odour_index}.npy'):
-            units_usrt = np.load(f'{filepath}/{file_name}{odour_index}.npy')
+            units_usrt = np.load(f'{filepath}/{file_name}{odour_index}.npy', allow_pickle=True)
             units_usrts[odour_index] = units_usrt
             usrts_array.append(units_usrt)
             print(f'Found odour {odour_index}')

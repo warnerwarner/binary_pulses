@@ -348,7 +348,7 @@ def load_usrts(file_name='unit_usrt', filepath=None):
             units_usrts[odour_index] = units_usrt
             usrts_array.append(units_usrt)
             print(f'Found odour {odour_index}')
-        return usrts_array
+    return usrts_array
 
 def get_variances(odour_index:int) -> list:
     """Finds the variances of all units to odour presentations of a certain odour identity

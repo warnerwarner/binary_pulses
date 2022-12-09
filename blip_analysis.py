@@ -317,7 +317,7 @@ def save_usrts(file_name='unit_usrt', filepath=None):
     for odour_index in [1, 3, 5]:
         if units_usrts[odour_index] is not None:
             units_usrt = units_usrts[odour_index]
-            if os.path.isfile(f'{file_name}{odour_index}.npy'):
+            if os.path.isfile(f'{filepath}/{file_name}{odour_index}.npy'):
                 overwrite = input('Usrt file already found, do you want to overwrite? (y/n)')
                 if overwrite == 'y':
                     print('Overwritten')
@@ -327,7 +327,7 @@ def save_usrts(file_name='unit_usrt', filepath=None):
                 else:
                     print('Argument not understood')
             else:
-                np.save(f'{file_name}{odour_index}.npy', units_usrt)
+                np.save(f'{filepath}/{file_name}{odour_index}.npy', units_usrt)
 
 def load_usrts(file_name='units_usrt', filepath=None):
     """Load in usrts
@@ -343,7 +343,7 @@ def load_usrts(file_name='units_usrt', filepath=None):
 
     for odour_index in [1, 3, 5]:
         usrts_array = []
-        if os.path.isfile(f'{file_name}{odour_index}.npy'):
+        if os.path.isfile(f'{filepath}/{file_name}{odour_index}.npy'):
             units_usrt = np.load(f'{filepath}/{file_name}{odour_index}.npy')
             units_usrts[odour_index] = units_usrt
             usrts_array.append(units_usrt)

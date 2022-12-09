@@ -313,7 +313,7 @@ def save_usrts(file_name='unit_usrt', filepath=None):
         file_name (str, optional): Name to save file as. Defaults to 'unit_usrt'.
     """
     if filepath is None:
-        filepath = '/home/camp/warnert/working/Recordings/binary_pulses/unit_usrts'
+        filepath = '/home/camp/warnert/working/Recordings/binary_pulses/blip_analysis/unit_usrts'
     for odour_index in [1, 3, 5]:
         if units_usrts[odour_index] is not None:
             units_usrt = units_usrts[odour_index]
@@ -339,10 +339,10 @@ def load_usrts(file_name='unit_usrt', filepath=None):
         : _description_
     """
     if filepath is None:
-        filepath = "/home/camp/warnert/working/Recordings/binary_pulses/unit_usrts"
-
+        filepath = "/home/camp/warnert/working/Recordings/binary_pulses/blip_analysis/unit_usrts"
+    usrts_array = []
     for odour_index in [1, 3, 5]:
-        usrts_array = []
+        
         if os.path.isfile(f'{filepath}/{file_name}{odour_index}.npy'):
             units_usrt = np.load(f'{filepath}/{file_name}{odour_index}.npy', allow_pickle=True)
             units_usrts[odour_index] = units_usrt

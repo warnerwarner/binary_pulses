@@ -3,6 +3,8 @@ import numpy as np
 import scipy
 from sklearn.model_selection import StratifiedShuffleSplit
 
+
+
 class ExponentialModel():
     '''
     LNP models using exponential non-linearity.
@@ -171,8 +173,6 @@ class ExponentialModel():
         
 
 
-            
-
 class ExponentialInteractiveModel(ExponentialModel):
     '''
     Models which contain interaction terms
@@ -304,4 +304,36 @@ class ExponentialRespWeighting(ExponentialInteractiveModel):
         w = np.append(w_time, w_int)
         wt = np.append(w, amps_and_thresh[-1])
         return super().minimisation_loss(wt)
+
+
+def custom_arrays():
+    trial_array = ExponentialModel.trial_array
     
+    conc_count = trial_array.sum(axis=-1)
+    onset_array = np.zeros((32, 5))
+    conc_array = np.zeros((32, 5))
+    
+    for i in range(32):
+        for j in range(5):
+            if trial_array[i, j] == 1:
+                onset_array[i, j] =1
+                break
+        if i != 0:
+            conc_array[i][conc_count[i]-1] = 1
+    trial_array_extended = np.append(trial_array[:, :5], np.zeros((32, 1)), axis=1)
+    trial_array_extended = np.append(np.zeros((32, 1)), trial_array_extended, axis=1)
+
+    pos_equiv_change = np.diff(trial_array_extended)
+    pos_equiv_change[pos_equiv_change < 0] = 0
+    diff_array = np.append(trial_array[:, :5], pos_equiv_change[:, 1:-1], axis=1)
+    cao_array = np.append(onset_array, conc_array, axis=1)
+
+    trial_arrays['base_array'] = trial_array
+    trial_arrays['diff_array'] = diff_array
+    trial_arrays['cao_array'] = cao_array
+
+
+if 'trial_arrays' not in globals():
+    trial_arrays = {}
+    custom_arrays()
+            

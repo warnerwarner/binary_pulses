@@ -61,6 +61,7 @@ def load_recs(sb = False):
                                 sniff_basis=sb)
 
     rec_array = jr.JoinedRecording(recordings=[rec1, rec2, rec3, rec4, rec5, rec6, rec7, rec8])
+    globals()['recs'] = rec_array
     return rec_array
 
 # Load in the recordings straight away and set some dictionaries
@@ -305,12 +306,14 @@ def get_usrts(odour_index: int, **kwargs):
         units_usrt = units_usrts[odour_index]
     return units_usrt
 
-def save_usrts(file_name='unit_usrt'):
+def save_usrts(file_name='unit_usrt', filepath=None):
     """Saves USRTs data structures
 
     Args:
         file_name (str, optional): Name to save file as. Defaults to 'unit_usrt'.
     """
+    if filepath is None:
+        filepath = '/home/camp/warnert/working/Recordings/binary_pulses/unit_usrts'
     for odour_index in [1, 3, 5]:
         if units_usrts[odour_index] is not None:
             units_usrt = units_usrts[odour_index]
@@ -323,8 +326,10 @@ def save_usrts(file_name='unit_usrt'):
                     print('Not overwritten')
                 else:
                     print('Argument not understood')
+            else:
+                np.save(f'{file_name}{odour_index}.npy', units_usrt)
 
-def load_usrts(file_name='units_usrt'):
+def load_usrts(file_name='units_usrt', filepath=None):
     """Load in usrts
 
     Args:
@@ -333,6 +338,9 @@ def load_usrts(file_name='units_usrt'):
     Returns:
         : _description_
     """
+    if filepath is None:
+        filepath = "/home/camp/warnert/working/Recordings/binary_pulses/unit_usrts"
+
     for odour_index in [1, 3, 5]:
         usrts_array = []
         if os.path.isfile(f'{file_name}{odour_index}.npy'):
@@ -341,8 +349,6 @@ def load_usrts(file_name='units_usrt'):
             usrts_array.append(units_usrt)
             print(f'Found odour {odour_index}')
         return usrts_array
-    else:
-        print('No usrt file found, try different name or get_usrts to generate fresh ones.')
 
 def get_variances(odour_index:int) -> list:
     """Finds the variances of all units to odour presentations of a certain odour identity

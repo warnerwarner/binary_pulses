@@ -3,7 +3,7 @@ import numpy as np
 import scipy
 from sklearn.model_selection import StratifiedShuffleSplit
 
-
+print('b')
 
 class ExponentialModel():
     '''
@@ -31,6 +31,7 @@ class ExponentialModel():
         self.X_test_avg = None
         self.pred_train_avg = None
         self.pred_test_avg = None
+        self.training_opts = None
     
     
     def minimisation_loss(self, w, X=None, y_1=None):
@@ -80,7 +81,7 @@ class ExponentialModel():
         """
         if true_resp is None: true_resp = self.true_resp
         if pred_resp is None: pred_resp= self.pred_resp
-        if vars is None: vars = self.unit_sr_var
+        if vars is None: vars = np.std(pred_resp)**2
         return np.array([np.power((i-j), 2) for i, j in zip(true_resp, pred_resp)])/vars
 
     def fit(self, X=None, y=None, W=None, update_loss=True):
@@ -121,6 +122,7 @@ class ExponentialModel():
         all_X_train_avg = []
         all_pred_test_avg = []
         all_pred_train_avg = []
+        all_training_opts = []
         for train_index, test_index in sss.split(self.unit_sr_flat, trial_labels):
             X_train = self.unit_sr_flat[train_index]
             X_test = self.unit_sr_flat[test_index]
@@ -130,6 +132,7 @@ class ExponentialModel():
             labels_test = trial_labels[test_index]
             self.fit(X_train, y_train, update_loss=False)
             out_train, pred_train = self.opt_out, self.pred_resp
+            
             self.fit(X_test, y_test, W=out_train.x, update_loss=False)
             pred_test =self.pred_resp
 
@@ -157,6 +160,7 @@ class ExponentialModel():
             all_X_test_avg.append(np.array(X_test_avg))
             all_pred_train_avg.append(np.array(pred_train_avg))
             all_pred_test_avg.append(np.array(pred_test_avg))
+            all_training_opts.append(out_train)
             if train_test_var:
                 all_train_scores.append(np.array(train_scores)/np.array(train_unit_var))
                 all_test_scores.append(np.array(test_scores)/np.array(test_unit_var))
@@ -170,8 +174,34 @@ class ExponentialModel():
         self.X_test_avg = np.array(all_X_test_avg)
         self.pred_train_avg = np.array(all_pred_train_avg)
         self.pred_test_avg = np.array(all_pred_test_avg)
+        self.training_opts = np.array(all_training_opts)
+
+    def fit_withold_trials(self,withheld_trials, X=None, y=None, W=None):
         
 
+        if X is None: X = np.array(self.true_resp)
+        if y is None: y = self.trial_array
+        vars = self.unit_sr_var
+
+        remove_array = np.full(32, True)
+        remove_array[withheld_trials] = False
+        X_red = X[remove_array]
+        y_red = y[remove_array]
+        vars_red = vars[remove_array]
+        
+        X_saved = X[~remove_array]
+        y_saved = y[~remove_array]
+        vars_saved = vars[~remove_array]
+
+        if W is None:
+            y_1 = np.append(y_red, np.ones((len(y_red), 1)), axis=1)
+            opt_out = scipy.optimize.minimize(self.minimisation_loss, np.zeros(len(y_1[0])), args=(X_red, y_1))
+            W = opt_out.x
+        
+        pred_red = np.exp(y_red @ W[:-1] + W[-1])
+        pred_witheld = np.exp(y_saved @ W[:-1] + W[-1])
+        fit_score = self.fit_scores(true_resp=X_saved, pred_resp=pred_witheld, vars=vars_saved)
+        return fit_score, pred_red, pred_witheld
 
 class ExponentialInteractiveModel(ExponentialModel):
     '''

@@ -32,6 +32,8 @@ class ExponentialModel():
         self.pred_train_avg = None
         self.pred_test_avg = None
         self.training_opts = None
+        # self.avg_training_scores = None
+        # self.avg_testing_scores = None
     
     
     def minimisation_loss(self, w, X=None, y_1=None):
@@ -81,7 +83,7 @@ class ExponentialModel():
         """
         if true_resp is None: true_resp = self.true_resp
         if pred_resp is None: pred_resp= self.pred_resp
-        if vars is None: vars = np.std(pred_resp)**2
+        if vars is None: vars = np.std(true_resp)**2
         return np.array([np.power((i-j), 2) for i, j in zip(true_resp, pred_resp)])/vars
 
     def fit(self, X=None, y=None, W=None, update_loss=True):
@@ -109,7 +111,7 @@ class ExponentialModel():
             self.loss_val = self.loss(self.pred_resp, self.true_resp)
         
     
-    def fit_split(self, n_splits=100, test_size=0.5, train_test_var=False, random_state=None, sss=None):
+    def fit_split(self, n_splits=100, test_size=0.5, train_test_var=True, random_state=None, sss=None):
         '''
         Fit portions of the data and compare fitted values across different splits
         '''
@@ -154,6 +156,8 @@ class ExponentialModel():
                 train_unit_var.append(np.std(X_train[labels_train==label])**2)
                 test_unit_var.append(np.std(X_test[labels_test==label])**2)
             
+
+            
             train_scores = np.array([np.power((i-j), 2) for i, j in zip(X_train_avg, pred_train_avg)])
             test_scores = np.array([np.power((i-j), 2) for i, j in zip(X_test_avg, pred_test_avg)])
             all_X_train_avg.append(np.array(X_train_avg))
@@ -161,9 +165,12 @@ class ExponentialModel():
             all_pred_train_avg.append(np.array(pred_train_avg))
             all_pred_test_avg.append(np.array(pred_test_avg))
             all_training_opts.append(out_train)
+            train_unit_var = np.std(X_train_avg)**2
+            test_unit_var = np.std(X_test_avg)**2
+
             if train_test_var:
-                all_train_scores.append(np.array(train_scores)/np.array(train_unit_var))
-                all_test_scores.append(np.array(test_scores)/np.array(test_unit_var))
+                all_train_scores.append(np.array(train_scores)/train_unit_var)
+                all_test_scores.append(np.array(test_scores)/test_unit_var)
             
             else:
                 all_train_scores.append(np.array(train_scores)/self.unit_sr_var)
@@ -175,6 +182,8 @@ class ExponentialModel():
         self.pred_train_avg = np.array(all_pred_train_avg)
         self.pred_test_avg = np.array(all_pred_test_avg)
         self.training_opts = np.array(all_training_opts)
+        # self.avg_training_scores = np.mean((self.X_train_avg.mean(axis=0)-self.pred_train_avg.mean(axis=0))**2)/(np.std(self.X_train_avg.mean(axis=0))**2)
+        # self.avg_testing_scores = np.mean((self.X_test_avg.mean(axis=0)-self.pred_test_avg.mean(axis=0))**2)/(np.std(self.X_test_avg.mean(axis=0))**2)
 
     def fit_withold_trials(self,withheld_trials, X=None, y=None, W=None):
         

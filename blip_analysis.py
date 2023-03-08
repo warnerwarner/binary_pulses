@@ -524,3 +524,23 @@ def get_glyphs(on_glyph='\u25AE', off_glyph='\u25AF'):
 
         glyphs.append(glyph_str)
     return glyphs
+
+def split_bs_data(usrt, test_size=1, bs_size=60):
+    train = []
+    test = []
+    for unit in usrt:
+        unit_train = []
+        unit_test = []
+        for stimuli in unit:
+            test_repeat_index = np.random.choice(np.arange(len(stimuli)), size=test_size)
+            rest_index = np.arange(len(stimuli))
+            rest_index = np.delete(rest_index, test_repeat_index)
+            bs_indexes = np.random.choice(rest_index, size=bs_size, replace=True)
+            bs_data = stimuli[bs_indexes]
+            unit_train.append(bs_data)
+            unit_test.append(stimuli[test_repeat_index])
+        train.append(unit_train)
+        test.append(unit_test)
+    train = np.array(train)
+    test = np.array(test)
+    return train, test

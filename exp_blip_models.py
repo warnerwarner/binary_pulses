@@ -128,15 +128,15 @@ class ExponentialModel():
         for train_index, test_index in sss.split(self.unit_sr_flat, trial_labels):
             X_train = self.unit_sr_flat[train_index]
             X_test = self.unit_sr_flat[test_index]
-            y_train = self.trial_array_full[train_index]
-            y_test = self.trial_array_full[test_index]
+            # y_train = self.trial_array_full[train_index]
+            # y_test = self.trial_array_full[test_index]
             labels_train = trial_labels[train_index]
             labels_test = trial_labels[test_index]
-            self.fit(X_train, y_train, update_loss=False)
-            out_train, pred_train = self.opt_out, self.pred_resp
+            # self.fit(X_train, y_train, update_loss=False)
+            # out_train, pred_train = self.opt_out, self.pred_resp
             
-            self.fit(X_test, y_test, W=out_train.x, update_loss=False)
-            pred_test =self.pred_resp
+            # self.fit(X_test, y_test, W=out_train.x, update_loss=False)
+            # pred_test =self.pred_resp
 
             X_train_avg = []
             X_test_avg = []
@@ -150,14 +150,18 @@ class ExponentialModel():
                 X_train_avg.append(np.mean(X_train[labels_train == label]))
                 X_test_avg.append(np.mean(X_test[labels_test == label]))
 
-                pred_train_avg.append(np.mean(pred_train[labels_train == label]))
-                pred_test_avg.append(np.mean(pred_test[labels_test == label]))
+                # pred_train_avg.append(np.mean(pred_train[labels_train == label]))
+                # pred_test_avg.append(np.mean(pred_test[labels_test == label]))
 
                 train_unit_var.append(np.std(X_train[labels_train==label])**2)
                 test_unit_var.append(np.std(X_test[labels_test==label])**2)
             
+            self.fit(X_train_avg, self.trial_array, update_loss=False)
+            out_train, pred_train_avg = self.opt_out, self.pred_resp
+            self.fit(X_test_avg, self.trial_array, update_loss=False, W=out_train.x)
+            pred_test_avg = self.pred_resp
 
-            
+
             train_scores = np.array([np.power((i-j), 2) for i, j in zip(X_train_avg, pred_train_avg)])
             test_scores = np.array([np.power((i-j), 2) for i, j in zip(X_test_avg, pred_test_avg)])
             all_X_train_avg.append(np.array(X_train_avg))
@@ -288,26 +292,38 @@ class ExponentialPartSetWeighting(ExponentialInteractiveModel):
     
 class JoinedWeightModels():
      
-    def __init__(self, unit_usrt, unit_ids, stim_count_type='mean'):
-        self.models = [ExponentialJoinedWeights(unit_usrt, i, stim_count_type) for i in unit_ids]
+    def __init__(self, unit_usrt, unit_ids, stim_count_type='mean', with_mean=False, model_type=ExponentialJoinedWeights, model_args=[]):
+        self.models = [model_type(unit_usrt, i, *model_args, stim_count_type=stim_count_type) for i in unit_ids]
+        self.with_mean = with_mean
+        self.opt_out = None
+        self.loss_val = None
+        self.model_weights = None
         
-    def fit_all(self, X=None, y=None, W=None, method='Nelder-Mead', alpha=1, **kwargs):
+    def fit_all(self, X=None, y=None, W=None, method='Powell', alpha=1, **kwargs):
         if W is None:
             W = np.ones(len(self.models[0].trial_array[0]))
         at = np.ones(len(self.models)*2)
         wat = np.append(W, at)
-        opt_out = scipy.optimize.minimize(self.minimisation_loss, wat, method = method, options={'maxiter':100000000}, args=(alpha))
+        if self.with_mean:
+            mean_W = np.ones(len(self.models[0].trial_array[0]))
+            wat = np.append(wat, mean_W)
+        opt_out = scipy.optimize.minimize(self.minimisation_loss, wat, method = method, options={'maxiter':100000000, "disp":True}, args=(alpha))
         self.opt_out = opt_out
         self.loss_val = opt_out.fun
+        self.find_model_weights()
         
-
+    
         
     def minimisation_loss(self, wat, alpha=1):
         losses = []
         w = wat[:9]
-        ats = wat[9:] 
+        ats = wat[9:]
+        if self.with_mean:
+            mean_w = wat[-9:]
         for index, i in enumerate(self.models):
             w_full = np.array(list(ats[index]*w) + list([ats[index+len(self.models)]]))
+            if self.with_mean:
+                w_full =  np.array(list(mean_w + w_full[:-1]) + [w_full[-1]])
             #print(w_full)
             loss = i.minimisation_loss(w_full)
             #print(loss)
@@ -315,8 +331,20 @@ class JoinedWeightModels():
             losses.append(loss)
         #print(np.sum(losses))
         #print(np.mean(losses) + np.mean(abs(ats)))
+        
         return np.mean(losses) + np.mean(abs(ats))*alpha
     
+    def find_model_weights(self):
+        assert self.opt_out is not None, 'Fit model first'
+        base_w = self.opt_out.x[:9]
+        ats = self.opt_out.x[9:]
+        model_weights = []
+        for index in range(len(self.models)):
+            w_full = np.array(list(ats[index]*base_w) + list([ats[index+len(self.models)]]))
+            if self.with_mean:
+                w_full = np.array(list(ats[-9:] + w_full[:-1]) + [w_full[-1]])
+            model_weights.append(w_full)
+        self.model_weights = model_weights        
 
 class ExponentialRespWeighting(ExponentialInteractiveModel):
     def __init__(self, unit_usrt, unit_id, stim_count_type='mean'):

@@ -13,6 +13,7 @@ from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import silhouette_score, adjusted_rand_score
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 import exp_blip_models as em
 sys.path.append('/home/camp/warner/working/Recordings/binary_pulses')
 

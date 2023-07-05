@@ -1,43 +1,53 @@
+"""Newer class for the exponetial LNP models."""
 import numpy as np
 import scipy
 from sklearn.model_selection import StratifiedShuffleSplit
 
+print('b')
 
 class ExponentialModel():
     '''
-    LNP models using exponential non-linearity. 
+    LNP models using exponential non-linearity.
     '''
     trial_array = np.array([[int(j) for j in f'{trial_int:05b}'] for trial_int in range(32)])
 
-    def __init__(self, units_usrt, unit_id):
-        '''
-        Inputs:
-        units_usrt - The firing rate responses, in a tensor of unit x stimuli type x repeat x time
-        unit_id - The index of the unit this model will be fitting to
-
-        unit_srt - The full response for the cell to be fit to
-        unit_sr - The average firing rate of this cell across all stimuli and repeats
-        unit_sr_flat - Each average firing rate across all stimuli and repeats, flatterned into one array
-        unit_sr_var - The variance of the cell's response across the repeats of each stimulus
-        trial_array_full - Generates an extended list of trial input patterns, according to the number of repeats of each pattern
-        is_fit - Has this been fit to the data yet
-        fit_score - Misnomar - the fitting error
-        true_resp - The true average firing rate change
-        '''
+    def __init__(self, units_usrt, unit_id, stim_count_type='mean'):
         self.unit_srt = units_usrt[unit_id]
-        self.unit_sr = [[np.mean(r) for r in s] for s in self.unit_srt] # Should be mean as it units_srt is in firing rate not spike count
+        if stim_count_type == 'mean':
+            self.unit_sr = [[np.mean(r) for r in s] for s in self.unit_srt] # Should be mean as it units_srt is in firing rate not spike count
+        elif stim_count_type == 'sum':
+            self.unit_sr = [[np.sum(r) for r in s] for s in self.unit_srt]
         self.unit_sr_flat = np.maximum([r for s in self.unit_sr for r in s], 1e-5)
         self.unit_sr_var = np.maximum(np.array([np.power(np.std(i), 2) for i in self.unit_sr]), 1e-5)
         self.unit_id = unit_id
         self.trial_array_full = np.concatenate([[list(self.trial_array[s])]*len(self.unit_sr[s]) for s in range(len(self.trial_array))])
         self.is_fit = False
         self.fit_score = np.inf
+        self.loss_val = np.inf
         self.true_resp = [np.mean(s) for s in self.unit_sr]
+        self.train_scores = None
+        self.test_scores = None
+        self.X_train_avg = None
+        self.X_test_avg = None
+        self.pred_train_avg = None
+        self.pred_test_avg = None
+        self.training_opts = None
+        # self.avg_training_scores = None
+        # self.avg_testing_scores = None
+    
     
     def minimisation_loss(self, w, X=None, y_1=None):
-        '''
-        Calculate the loss for use in the minimisation function.
-        '''
+        """Loss function to use in the minimisation procedure for fitting
+
+        Args:
+            w (list): bin weightings
+            X (list, optional): Values to fit to. If None, then takes the self.true_resp.
+            y_1 (list, optional): The input bin pattern to use. If None, then uses the
+                                  self.trial_array with an additional constant threshold value
+
+        Returns:
+            loss (float): The calculated loss value
+        """
 
         # If no X and y_1 are presented (as is the case when its being implemented in the minimize function) then take the resps
         if X is None: X = self.true_resp
@@ -49,21 +59,34 @@ class ExponentialModel():
         return self.loss(pred_response, X)
     
     def loss(self, pred_response, true_response):
-        '''
-        Calculates the loss of a Poisson firing process model
-        '''
+        """Calculate the Poisson loss function
+
+        Args:
+            pred_response (list): The predicted firing rates
+            true_response (list): The measured firing rates
+
+        Returns:
+            loss (float): Total loss score for all the fits
+        """
         return np.sum(pred_response-true_response*np.log(pred_response))
     
     def fit_scores(self, true_resp=None, pred_resp=None, vars=None):
-        '''
-        Returns the mean square difference between the predicted and actual firing rates
-        '''
+        """Calculates the least squares fit error
+
+        Args:
+            true_resp (_type_, optional): _description_. Defaults to None.
+            pred_resp (_type_, optional): _description_. Defaults to None.
+            vars (_type_, optional): _description_. Defaults to None.
+
+        Returns:
+            _type_: _description_
+        """
         if true_resp is None: true_resp = self.true_resp
         if pred_resp is None: pred_resp= self.pred_resp
-        if vars is None: vars = self.unit_sr_var
+        if vars is None: vars = np.std(true_resp)**2
         return np.array([np.power((i-j), 2) for i, j in zip(true_resp, pred_resp)])/vars
 
-    def fit(self, X=None, y=None, W=None):
+    def fit(self, X=None, y=None, W=None, update_loss=True):
         '''
         Main fitting function, uses scipy minimize function on the loss function
         '''
@@ -78,15 +101,17 @@ class ExponentialModel():
             y_1 = np.append(y, np.ones((len(y), 1)), axis=1)
             opt_out = scipy.optimize.minimize(self.minimisation_loss, np.zeros(len(y_1[0])), args=(X, y_1))
             W = opt_out.x
+            self.opt_out= opt_out
         inter_exp = y@W[:-1]+W[-1] # The value inside the exponetial
         pred_firing = np.exp(inter_exp)
         self.is_fit = True
         self.pred_resp = pred_firing
-        self.opt_out= opt_out
         self.fit_score = np.mean(self.fit_scores())
+        if update_loss:
+            self.loss_val = self.loss(self.pred_resp, self.true_resp)
         
     
-    def fit_split(self, n_splits=100, test_size=0.5, train_test_var=False, random_state=None, sss=None):
+    def fit_split(self, n_splits=100, test_size=0.5, train_test_var=True, random_state=None, sss=None):
         '''
         Fit portions of the data and compare fitted values across different splits
         '''
@@ -95,17 +120,23 @@ class ExponentialModel():
         trial_labels =  np.concatenate([[s for j in range(len(self.unit_sr[s]))] for s in range(len(self.trial_array))])
         all_train_scores = []
         all_test_scores = []
+        all_X_test_avg = []
+        all_X_train_avg = []
+        all_pred_test_avg = []
+        all_pred_train_avg = []
+        all_training_opts = []
         for train_index, test_index in sss.split(self.unit_sr_flat, trial_labels):
             X_train = self.unit_sr_flat[train_index]
             X_test = self.unit_sr_flat[test_index]
-            y_train = self.trial_array_full[train_index]
-            y_test = self.trial_array_full[test_index]
+            # y_train = self.trial_array_full[train_index]
+            # y_test = self.trial_array_full[test_index]
             labels_train = trial_labels[train_index]
             labels_test = trial_labels[test_index]
-            self.fit(X_train, y_train)
-            out_train, pred_train = self.opt_out, self.pred_resp
-            self.fit(X_test, y_test, W=out_train.x)
-            pred_test =self.pred_resp
+            # self.fit(X_train, y_train, update_loss=False)
+            # out_train, pred_train = self.opt_out, self.pred_resp
+            
+            # self.fit(X_test, y_test, W=out_train.x, update_loss=False)
+            # pred_test =self.pred_resp
 
             X_train_avg = []
             X_test_avg = []
@@ -113,73 +144,186 @@ class ExponentialModel():
             pred_test_avg = []
             train_unit_var = []
             test_unit_var = []
+            
 
             for label in range(len(self.trial_array)):
                 X_train_avg.append(np.mean(X_train[labels_train == label]))
                 X_test_avg.append(np.mean(X_test[labels_test == label]))
 
-                pred_train_avg.append(np.mean(pred_train[labels_train == label]))
-                pred_test_avg.append(np.mean(pred_test[labels_test == label]))
+                # pred_train_avg.append(np.mean(pred_train[labels_train == label]))
+                # pred_test_avg.append(np.mean(pred_test[labels_test == label]))
 
                 train_unit_var.append(np.std(X_train[labels_train==label])**2)
                 test_unit_var.append(np.std(X_test[labels_test==label])**2)
             
+            self.fit(X_train_avg, self.trial_array, update_loss=False)
+            out_train, pred_train_avg = self.opt_out, self.pred_resp
+            self.fit(X_test_avg, self.trial_array, update_loss=False, W=out_train.x)
+            pred_test_avg = self.pred_resp
+
+
             train_scores = np.array([np.power((i-j), 2) for i, j in zip(X_train_avg, pred_train_avg)])
             test_scores = np.array([np.power((i-j), 2) for i, j in zip(X_test_avg, pred_test_avg)])
+            all_X_train_avg.append(np.array(X_train_avg))
+            all_X_test_avg.append(np.array(X_test_avg))
+            all_pred_train_avg.append(np.array(pred_train_avg))
+            all_pred_test_avg.append(np.array(pred_test_avg))
+            all_training_opts.append(out_train)
+            train_unit_var = np.std(X_train_avg)**2
+            test_unit_var = np.std(X_test_avg)**2
+
             if train_test_var:
-                all_train_scores.append(1-np.array(train_scores)/np.array(train_unit_var))
-                all_test_scores.append(1-np.array(test_scores)/np.array(test_unit_var))
+                all_train_scores.append(np.array(train_scores)/train_unit_var)
+                all_test_scores.append(np.array(test_scores)/test_unit_var)
             
             else:
-                all_train_scores.append(1-np.array(train_scores)/self.unit_sr_var)
-                all_test_scores.append(1-np.array(test_scores)/self.unit_sr_var)
+                all_train_scores.append(np.array(train_scores)/self.unit_sr_var)
+                all_test_scores.append(np.array(test_scores)/self.unit_sr_var)
         self.train_scores = np.array(all_train_scores)
         self.test_scores = np.array(all_test_scores)
+        self.X_train_avg = np.array(all_X_train_avg)
+        self.X_test_avg = np.array(all_X_test_avg)
+        self.pred_train_avg = np.array(all_pred_train_avg)
+        self.pred_test_avg = np.array(all_pred_test_avg)
+        self.training_opts = np.array(all_training_opts)
+        # self.avg_training_scores = np.mean((self.X_train_avg.mean(axis=0)-self.pred_train_avg.mean(axis=0))**2)/(np.std(self.X_train_avg.mean(axis=0))**2)
+        # self.avg_testing_scores = np.mean((self.X_test_avg.mean(axis=0)-self.pred_test_avg.mean(axis=0))**2)/(np.std(self.X_test_avg.mean(axis=0))**2)
 
-                
-            
+    def fit_withold_trials(self,withheld_trials, X=None, y=None, W=None):
+        
 
+        if X is None: X = np.array(self.true_resp)
+        if y is None: y = self.trial_array
+        vars = self.unit_sr_var
+
+        remove_array = np.full(32, True)
+        remove_array[withheld_trials] = False
+        X_red = X[remove_array]
+        y_red = y[remove_array]
+        vars_red = vars[remove_array]
+        
+        X_saved = X[~remove_array]
+        y_saved = y[~remove_array]
+        vars_saved = vars[~remove_array]
+
+        if W is None:
+            y_1 = np.append(y_red, np.ones((len(y_red), 1)), axis=1)
+            opt_out = scipy.optimize.minimize(self.minimisation_loss, np.zeros(len(y_1[0])), args=(X_red, y_1))
+            W = opt_out.x
+        
+        pred_red = np.exp(y_red @ W[:-1] + W[-1])
+        pred_witheld = np.exp(y_saved @ W[:-1] + W[-1])
+        fit_score = self.fit_scores(true_resp=X_saved, pred_resp=pred_witheld, vars=vars_saved)
+        return fit_score, pred_red, pred_witheld
 
 class ExponentialInteractiveModel(ExponentialModel):
+    '''
+    Models which contain interaction terms
+    '''
+
     trial_array = np.array([[int(j) for j in f'{trial_int:05b}']+[(i+j == '11') for i, j in zip(f'{trial_int:05b}'[:-1], f'{trial_int:05b}'[1:])] for trial_int in range(32)])
 
-    def __init__(self, unit_usrt, unit_id):
-        super().__init__(unit_usrt, unit_id)
+    def __init__(self, unit_usrt, unit_id, stim_count_type='mean'):
+        super().__init__(unit_usrt, unit_id, stim_count_type )
             
 class ExponentialCustomTrialArray(ExponentialModel):
+    '''
+    Models with unique trial arrays
+    '''
 
-    def __init__(self, unit_usrt, unit_id, trial_array):
-        super().__init__(unit_usrt, unit_id)
+    def __init__(self, unit_usrt, unit_id, trial_array, stim_count_type='mean'):
+        super().__init__(unit_usrt, unit_id, stim_count_type)
         self.trial_array = trial_array
+        self.trial_array_full = np.concatenate([[list(self.trial_array[s])]*len(self.unit_sr[s]) for s in range(len(self.trial_array))])
 
 class ExponentialJoinedWeights(ExponentialInteractiveModel):
+    '''
+    Models which share a single weighting
+    '''
     
-    def __init__(self, unit_usrt, unit_id):
-        super().__init__(unit_usrt, unit_id)
+    def __init__(self, unit_usrt, unit_id, stim_count_type='mean'):
+        super().__init__(unit_usrt, unit_id, stim_count_type)
         
+    
+class ExponentialSetWeighting(ExponentialInteractiveModel):
+    '''
+    Depreciated, now can be done by any ExponentialModel
+    '''
+    
+    def __init__(self, unit_usrt, unit_id, stim_count_type='mean'):
+        super().__init__(unit_usrt, unit_id, stim_count_type)
+        
+    def fit(self, W, X=None, y=None):
+        at = np.ones(2)
+        opt_out = scipy.optimize.minimize(self.minimisation_loss, at, args=(W))
+        self.opt_out = opt_out
+        at = opt_out.x
+        w = W*at[0]
+        wt = np.append(w, at[1])
+        super().fit(W=wt)
+        self.loss_val = opt_out.fun
+
+    
+    def minimisation_loss(self, at, W=np.ones(9)):
+        w = W*at[0]
+        wt = np.append(w, at[1])
+        #print(wt)
+        return super().minimisation_loss(wt)
+    
+class ExponentialPartSetWeighting(ExponentialInteractiveModel):
+    '''
+    Depreciated
+    '''
+    
+    def __init__(self, unit_usrt, unit_id, stim_count_type='mean'):
+        super().__init__(unit_usrt, unit_id, stim_count_type)
+        
+    def fit(self, W, X=None, y=None):
+        ati = np.ones(6)
+        opt_out = scipy.optimize.minimize(self.minimisation_loss, ati, args=(W))
+        self.opt_out = opt_out
+        ati = opt_out.x
+        w_time = W*ati[0]
+        w = np.append(w_time, ati[-4:])
+        wt = np.append(w, ati[1])
+        super().fit(W=wt)
+        self.loss_val = opt_out.fun
+
     
 class JoinedWeightModels():
      
-    def __init__(self, unit_usrt, unit_ids):
-        self.models = [ExponentialJoinedWeights(unit_usrt, i) for i in unit_ids]
+    def __init__(self, unit_usrt, unit_ids, stim_count_type='mean', with_mean=False, model_type=ExponentialJoinedWeights, model_args=[]):
+        self.models = [model_type(unit_usrt, i, *model_args, stim_count_type=stim_count_type) for i in unit_ids]
+        self.with_mean = with_mean
+        self.opt_out = None
+        self.loss_val = None
+        self.model_weights = None
         
-    def fit_all(self, X=None, y=None, W=None, method='Nelder-Mead', alpha=1, **kwargs):
+    def fit_all(self, X=None, y=None, W=None, method='Powell', alpha=1, **kwargs):
         if W is None:
             W = np.ones(len(self.models[0].trial_array[0]))
         at = np.ones(len(self.models)*2)
         wat = np.append(W, at)
-        opt_out = scipy.optimize.minimize(self.minimisation_loss, wat, method = method, options={'maxiter':100000000}, args=(alpha))
+        if self.with_mean:
+            mean_W = np.ones(len(self.models[0].trial_array[0]))
+            wat = np.append(wat, mean_W)
+        opt_out = scipy.optimize.minimize(self.minimisation_loss, wat, method = method, options={'maxiter':100000000, "disp":True}, args=(alpha))
         self.opt_out = opt_out
-        self.loss = opt_out.fun
+        self.loss_val = opt_out.fun
+        self.find_model_weights()
         
-
+    
         
     def minimisation_loss(self, wat, alpha=1):
         losses = []
         w = wat[:9]
-        ats = wat[9:] 
+        ats = wat[9:]
+        if self.with_mean:
+            mean_w = wat[-9:]
         for index, i in enumerate(self.models):
             w_full = np.array(list(ats[index]*w) + list([ats[index+len(self.models)]]))
+            if self.with_mean:
+                w_full =  np.array(list(mean_w + w_full[:-1]) + [w_full[-1]])
             #print(w_full)
             loss = i.minimisation_loss(w_full)
             #print(loss)
@@ -187,4 +331,76 @@ class JoinedWeightModels():
             losses.append(loss)
         #print(np.sum(losses))
         #print(np.mean(losses) + np.mean(abs(ats)))
+        
         return np.mean(losses) + np.mean(abs(ats))*alpha
+    
+    def find_model_weights(self):
+        assert self.opt_out is not None, 'Fit model first'
+        base_w = self.opt_out.x[:9]
+        ats = self.opt_out.x[9:]
+        model_weights = []
+        for index in range(len(self.models)):
+            w_full = np.array(list(ats[index]*base_w) + list([ats[index+len(self.models)]]))
+            if self.with_mean:
+                w_full = np.array(list(ats[-9:] + w_full[:-1]) + [w_full[-1]])
+            model_weights.append(w_full)
+        self.model_weights = model_weights        
+
+class ExponentialRespWeighting(ExponentialInteractiveModel):
+    def __init__(self, unit_usrt, unit_id, stim_count_type='mean'):
+        super().__init__(unit_usrt, unit_id, stim_count_type)
+        self.wt = np.ones(9)
+        
+    def fit(self, W_time, W_int, X=None, y=None):
+        amps_and_thresh = np.ones(3)
+        opt_out = scipy.optimize.minimize(self.minimisation_loss, amps_and_thresh, args=(W_time, W_int))
+        self.opt_out = opt_out
+        amps_and_thresh = opt_out.x
+        w_time = W_time * amps_and_thresh[0]
+        w_int = W_int * amps_and_thresh[1]
+        w = np.append(w_time, w_int)
+        wt = np.append(w, amps_and_thresh[-1])
+       
+        self.wt = wt
+        super().fit(W=wt)
+        self.loss_val = opt_out.fun
+        
+    def minimisation_loss(self, amps_and_thresh, W_time = np.ones(5), W_int = np.ones(4)):
+        w_time = W_time*amps_and_thresh[0]
+        w_int = W_int*amps_and_thresh[1]
+        w = np.append(w_time, w_int)
+        wt = np.append(w, amps_and_thresh[-1])
+        return super().minimisation_loss(wt)
+
+
+def custom_arrays():
+    trial_array = ExponentialModel.trial_array
+    
+    conc_count = trial_array.sum(axis=-1)
+    onset_array = np.zeros((32, 5))
+    conc_array = np.zeros((32, 5))
+    
+    for i in range(32):
+        for j in range(5):
+            if trial_array[i, j] == 1:
+                onset_array[i, j] =1
+                break
+        if i != 0:
+            conc_array[i][conc_count[i]-1] = 1
+    trial_array_extended = np.append(trial_array[:, :5], np.zeros((32, 1)), axis=1)
+    trial_array_extended = np.append(np.zeros((32, 1)), trial_array_extended, axis=1)
+
+    pos_equiv_change = np.diff(trial_array_extended)
+    pos_equiv_change[pos_equiv_change < 0] = 0
+    diff_array = np.append(trial_array[:, :5], pos_equiv_change[:, 1:-1], axis=1)
+    cao_array = np.append(onset_array, conc_array, axis=1)
+
+    trial_arrays['base_array'] = trial_array
+    trial_arrays['diff_array'] = diff_array
+    trial_arrays['cao_array'] = cao_array
+
+
+if 'trial_arrays' not in globals():
+    trial_arrays = {}
+    custom_arrays()
+            
